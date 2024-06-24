@@ -3,9 +3,12 @@ from collections import Counter
 import numpy as np
 import os
 import cv2
+from io import BytesIO
+import base64
+from PIL import Image
 
 class ExtractNumberPics():
-    def __init__(self, image, sam_masks,save_seg_pic=False,dbscan_eps=20):
+    def __init__(self, image_path, sam_masks,save_seg_pic=False,dbscan_eps=20):
         """
         聚类后，输出含有数字的SAM结果
         1. image:读入的图片，格式为：
@@ -20,11 +23,17 @@ class ExtractNumberPics():
         import  dbscan_cluster
         extract_number_pics=dbscan_cluster.ExtractNumberPics(image,sam_masks,dbscan_eps=20)
         pics=extract_number_pics.extract_bbox()
+
+        for i  in range(len(pics)):
+            mask_image=pics[i]
+            cv2.imwrite("./number_pics/pic_"+str(i)+".jpg", cv2.cvtColor(mask_image, cv2.COLOR_RGB2BGR))  
         """
-        self.image=image
+        self.image_path=image_path
         self.sam_masks=sam_masks
         self.dbscan_eps=dbscan_eps
         self.save_seg_pic=save_seg_pic
+        self.image = cv2.imread(self.image_path)
+        self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
 
     def cluster_integers(self,numbers):
         """
@@ -77,13 +86,26 @@ class ExtractNumberPics():
         select_masks=[i for i,j in zip(self.sam_masks,labels) if j==select_label]
         # print('select bbox:',len(select_masks))
         
-        select_pics={}
+        select_pics=[]
         if self.save_seg_pic:
             os.makedirs('number_pics',exist_ok=True)
+            os.makedirs(self.image_path.split('/')[-1].split('.')[0],exist_ok=True)
+            
         for i in range(len(select_masks)):
-            select_pics[i]=[int(i) for i in select_masks[i]['bbox']]
+            pic_info={}
+            pic_info['bbox']=[int(i) for i in select_masks[i]['bbox']]
+            
+            mask_image = self.extract_mask_image(select_masks[i]['segmentation'],pic_info['bbox'])
+            buffer = BytesIO()
+            pil_image = Image.fromarray(np.asarray(mask_image))
+            pil_image.save(buffer, format="JPEG")
+            im_bytes = buffer.getvalue()
+            im_b64 = base64.b64encode(im_bytes).decode('utf-8')
+            pic_info['im_b64']=im_b64
+            
             if self.save_seg_pic:
-                mask_image = self.extract_mask_image(select_masks[i]['segmentation'],[int(i) for i in select_masks[i]['bbox']])
-                cv2.imwrite("./number_pics/pic_"+str(i)+".jpg", cv2.cvtColor(mask_image, cv2.COLOR_RGB2BGR))
+                pic_info['save_path']=os.path.join("number_pics",self.image_path.split('/')[-1].split('.')[0],str(i)+".jpg")
+                cv2.imwrite(pic_info['save_path'], cv2.cvtColor(mask_image, cv2.COLOR_RGB2BGR))
+            select_pics.append(pic_info)
   
         return select_pics
