@@ -1,9 +1,11 @@
 from sklearn.cluster import DBSCAN
 from collections import Counter
 import numpy as np
+import os
+import cv2
 
 class ExtractNumberPics():
-    def __init__(self, image, sam_masks,dbscan_eps=20):
+    def __init__(self, image, sam_masks,save_seg_pic=False,dbscan_eps=20):
         """
         聚类后，输出含有数字的SAM结果
         1. image:读入的图片，格式为：
@@ -26,6 +28,7 @@ class ExtractNumberPics():
         self.image=image
         self.sam_masks=sam_masks
         self.dbscan_eps=dbscan_eps
+        self.save_seg_pic=save_seg_pic
 
     def cluster_integers(self,numbers):
         """
@@ -71,15 +74,20 @@ class ExtractNumberPics():
         areas=[i['area'] for i in self.sam_masks]
         labels = self.cluster_integers(areas)
         cc=Counter(labels)
-        print(cc)
+        # print(cc)
         cc.pop(-1)
         select_label = max(cc.items(), key=lambda x: x[1])[0]
-        print('select label:',select_label)
+        # print('select label:',select_label)
         select_masks=[i for i,j in zip(self.sam_masks,labels) if j==select_label]
-        print('select bbox:',len(select_masks))
+        # print('select bbox:',len(select_masks))
         
-        select_pics=[]
+        select_pics={}
+        if self.save_seg_pic:
+            os.makedirs('number_pics',exist_ok=True)
         for i in range(len(select_masks)):
-            mask_image = self.extract_mask_image(select_masks[i]['segmentation'],[int(i) for i in select_masks[i]['bbox']])
-            select_pics.append(mask_image)
+            select_pics[i]=[int(i) for i in select_masks[i]['bbox']]
+            if self.save_seg_pic:
+                mask_image = self.extract_mask_image(select_masks[i]['segmentation'],[int(i) for i in select_masks[i]['bbox']])
+                cv2.imwrite("./number_pics/pic_"+str(i)+".jpg", cv2.cvtColor(mask_image, cv2.COLOR_RGB2BGR))
+  
         return select_pics
