@@ -20,10 +20,6 @@ class ExtractNumberPics():
         import  dbscan_cluster
         extract_number_pics=dbscan_cluster.ExtractNumberPics(image,sam_masks,dbscan_eps=20)
         pics=extract_number_pics.extract_bbox()
-
-        for i  in range(len(pics)):
-            mask_image=pics[i]
-            cv2.imwrite("./number_pics/pic_"+str(i)+".jpg", cv2.cvtColor(mask_image, cv2.COLOR_RGB2BGR))  
         """
         self.image=image
         self.sam_masks=sam_masks
