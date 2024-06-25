@@ -1,14 +1,41 @@
 from sklearn.cluster import DBSCAN
 from collections import Counter
-import numpy as np
 import os
 import cv2
 from io import BytesIO
 import base64
 from PIL import Image
+import numpy as np
+
+
+
+
+def np_to_mask_candidate(mask_np):
+    """
+    将 NumPy 数组转换回原始的 mask_candidate 格式
+
+    Args:
+        mask_np (numpy.ndarray): NumPy 数组形式的掩码
+
+    Returns:
+        list: mask_candidate 列表
+    """
+    # 确保输入是一维数组
+    mask_np = np.ravel(mask_np)
+
+    # 将数组转换为字节串
+    mask_bytes = np.packbits(mask_np).tobytes()
+
+    # 将字节串转换为列表
+    mask_candidate = [None] * (len(mask_bytes) * 8)
+    for i, byte in enumerate(mask_bytes):
+        for j in range(8):
+            mask_candidate[i * 8 + j] = bool(byte & (1 << (7 - j)))
+
+    return mask_candidate
 
 class ExtractNumberPics():
-    def __init__(self, image_path, sam_masks,save_seg_pic=False,dbscan_eps=20):
+    def __init__(self, image_path, sam_masks,save_seg_pic=True,dbscan_eps=20):
         """
         聚类后，输出含有数字的SAM结果
         1. image:读入的图片，格式为：
@@ -18,7 +45,7 @@ class ExtractNumberPics():
         mask_generator = SamAutomaticMaskGenerator(sam,points_per_side=64)
         masks = mask_generator.generate(image)
         3. dbscan_eps， DBSAN聚类参数，数字越小，分出的类别数量越多
-        
+
         example：
         import  dbscan_cluster
         extract_number_pics=dbscan_cluster.ExtractNumberPics(image,sam_masks,dbscan_eps=20)
@@ -26,7 +53,7 @@ class ExtractNumberPics():
 
         for i  in range(len(pics)):
             mask_image=pics[i]
-            cv2.imwrite("./number_pics/pic_"+str(i)+".jpg", cv2.cvtColor(mask_image, cv2.COLOR_RGB2BGR))  
+            cv2.imwrite("./number_pics/pic_"+str(i)+".jpg", cv2.cvtColor(mask_image, cv2.COLOR_RGB2BGR))
         """
         self.image_path=image_path
         self.sam_masks=sam_masks
@@ -52,60 +79,44 @@ class ExtractNumberPics():
 
         # 返回每个整数所属的类别
         return labels
-    
-    def extract_mask_image(self,mask, bbox):
-        """
-        从原始图像中提取掩码区域和边界框内的区域,并生成新的图像。
 
-        参数:
-        image (numpy.ndarray): 原始图像(OpenCV格式)
-        mask (numpy.ndarray): 二维掩码,形状与原始图像相同,元素为布尔值(True或False)
-        bbox (list): 边界框坐标,格式为[x, y, width, height]
-
-        返回:
-        numpy.ndarray: 提取后的新图像(OpenCV格式)
-        """
-        # 创建新的图像数组,只包含掩码区域和边界框内的像素
-        mask_image_array = np.zeros_like(self.image)
-        mask_image_array[mask] = self.image[mask]
-
+    def extract_mask_image(self, bbox):
         # 获取边界框区域
         x, y, width, height = bbox
-        roi = mask_image_array[y:y+height, x:x+width]
-
+        roi = self.image[y:y+height, x:x+width]
         return roi
-    
+
     def extract_bbox(self):
         areas=[i['area'] for i in self.sam_masks]
         labels = self.cluster_integers(areas)
         cc=Counter(labels)
-        # print(cc)
+        print(cc)
         cc.pop(-1)
         select_label = max(cc.items(), key=lambda x: x[1])[0]
         # print('select label:',select_label)
         select_masks=[i for i,j in zip(self.sam_masks,labels) if j==select_label]
         # print('select bbox:',len(select_masks))
-        
+
         select_pics=[]
         if self.save_seg_pic:
             os.makedirs('number_pics',exist_ok=True)
-            os.makedirs(self.image_path.split('/')[-1].split('.')[0],exist_ok=True)
-            
+            os.makedirs(os.path.join('number_pics',self.image_path.split('/')[-1].split('.')[0]),exist_ok=True)
+
         for i in range(len(select_masks)):
             pic_info={}
             pic_info['bbox']=[int(i) for i in select_masks[i]['bbox']]
-            
-            mask_image = self.extract_mask_image(select_masks[i]['segmentation'],pic_info['bbox'])
+
+            mask_image = self.extract_mask_image(pic_info['bbox'])
             buffer = BytesIO()
             pil_image = Image.fromarray(np.asarray(mask_image))
             pil_image.save(buffer, format="JPEG")
             im_bytes = buffer.getvalue()
             im_b64 = base64.b64encode(im_bytes).decode('utf-8')
             pic_info['im_b64']=im_b64
-            
+
             if self.save_seg_pic:
                 pic_info['save_path']=os.path.join("number_pics",self.image_path.split('/')[-1].split('.')[0],str(i)+".jpg")
                 cv2.imwrite(pic_info['save_path'], cv2.cvtColor(mask_image, cv2.COLOR_RGB2BGR))
             select_pics.append(pic_info)
-  
+
         return select_pics
