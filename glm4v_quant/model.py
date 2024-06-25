@@ -9,8 +9,12 @@ import base64, json
 from PIL import Image
 import os
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2"
+os.system("pip install --upgrade pip")
+os.system("pip install -i https://pypi.org/simple/ bitsandbytes")
+os.system("pip install flash-attn==2.5.8 --no-build-isolation")
 
 model_dict = None
+
 
 def load_model(properties):
     model_id = properties["model_id"]

@@ -8,6 +8,8 @@ from PIL import Image
 import os
 from tqdm import tqdm
 import cv2
+import numpy as np
+from io import BytesIO
 
 def invoke_glm4v(runtime, im_b64, endpoint_name):
     response = runtime.invoke_endpoint(
@@ -61,9 +63,9 @@ def sharpen_image(img_path, save_path):
     img = cv2.imread(img_path)
 
     # 创建卷积核
-    kernel = np.array([[0, -1, 0],
-                       [-1, 5, -1],
-                       [0, -1, 0]])
+    kernel = np.array([[-1, -1, -1],
+                       [-1, 8, -1],
+                       [-1, -1, -1]])
 
     # 锐化处理
     sharpened = cv2.filter2D(img, -1, kernel)
@@ -81,7 +83,7 @@ def create_collage(output_folder, pics, n=20):
     num = len(input_images) // 20 + 1
 
     ##get image shape to the same
-    image_height, image_width = cv2.imread(input_images[0]).shape
+    image_height, image_width,_ = cv2.imread(input_images[0]).shape
 
     for i in tqdm(range(num)):
         # Load and resize individual images
