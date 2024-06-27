@@ -90,7 +90,7 @@ class ExtractNumberPics():
         areas=[i['area'] for i in self.sam_masks]
         labels = self.cluster_integers(areas)
         cc=Counter(labels)
-        print(cc)
+        # print(cc)
         cc.pop(-1)
         select_label = max(cc.items(), key=lambda x: x[1])[0]
         # print('select label:',select_label)

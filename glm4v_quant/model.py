@@ -8,7 +8,7 @@ from io import BytesIO
 import base64, json
 from PIL import Image
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2"
 os.system("pip install --upgrade pip")
 os.system("pip install -i https://pypi.org/simple/ bitsandbytes")
 os.system("pip install flash-attn==2.5.8 --no-build-isolation")
@@ -21,10 +21,11 @@ def load_model(properties):
     tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
-        torch_dtype=torch.float16,
         low_cpu_mem_usage=True,
         trust_remote_code=True,
-        device_map="auto"
+        device_map="cuda:0",
+        torch_dtype=torch.bfloat16,
+        load_in_4bit=True
     ).eval()
     
     return {"tokenizer": tokenizer, "model": model}
