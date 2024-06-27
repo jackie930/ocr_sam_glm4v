@@ -266,6 +266,26 @@ def main(sam_endpoint_name, glm4v_endpoint_name, image_path, output_folder):
         # Use json.dump() to write the list to the file
         json.dump(results, f)  # Optional parameter for indentation
     print('Data written to json',json_name)
+    
+    json_name_final='res_final.json'
+    results_final={'merged_image_name':image_path}
+    bbox_filter=[]
+    ocr_filter=[]
+    for merged in results:
+        bbox=merged['merged_bbox']
+        ocr=merged['ocr_res']
+        for b,o in zip(bbox,ocr):
+            o=remove_non_numeric(o)
+            if len(o)>0 and "None" not in o:
+                bbox_filter.append(b)
+                ocr_filter.append(o)
+    results_final['merged_bbox']=bbox_filter
+    results_final['ocr_res']=ocr_filter
+    with open(os.path.join(output_folder, json_name_final), 'w', encoding='utf-8') as f:
+        # Use json.dump() to write the list to the file
+        json.dump(results_final, f)  # Optional parameter for indentation
+    print('Data written to json',json_name_final)
+    
     return res2
 
 if __name__ == "__main__":
