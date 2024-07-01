@@ -5,12 +5,13 @@ import argparse
 from boto3.session import Session
 import json
 from PIL import Image, ImageDraw, ImageFont
-import os
 from tqdm import tqdm
 import cv2
-import numpy as np
 from io import BytesIO
-import ast
+from PIL import Image
+import os
+import numpy as np
+
 import re
 
 def invoke_glm4v(runtime, image_path, endpoint_name, collage_image=True):
@@ -51,7 +52,7 @@ def invoke_sam(runtime, sam_endpoint_name, body_base64):
         "pred_iou_thresh": 0.88,
         "stability_score_thresh": 0.9,
         "stability_score_offset": 1.0,
-        "box_nms_thresh": 0.95,
+        "box_nms_thresh": 0.7,
         "crop_n_layers": 0,
         "crop_nms_thresh": 0.7,
         "crop_overlap_ratio": 0.3413333333333333,
@@ -87,6 +88,44 @@ def sharpen_image(img_path, save_path):
 
     return
 
+
+def get_average_dimensions(input_images):
+    wid_ls = []
+    height_ls = []
+    file_count = 0
+
+    # 遍历文件夹中的所有文件
+    for file_path in input_images:
+
+        # 检查是否为图像文件
+        try:
+            image = Image.open(file_path)
+        except IOError:
+            continue  # 忽略非图像文件
+
+        # 获取图像的长度和宽度
+        width, height = image.size
+        wid_ls.append(width)
+        height_ls.append(height)
+        file_count += 1
+
+    # 计算平均值
+    if file_count > 0:
+        if (max(wid_ls) - np.median(wid_ls)) / np.median(wid_ls) < 0.3:
+            weight_res = max(wid_ls) + 40
+            if (max(height_ls) - np.median(height_ls)) / np.median(height_ls) < 0.3:
+                height_res = max(height_ls) + 40
+            else:
+                height_res = np.median(height_ls) + 40
+        else:
+            weight_res = np.median(wid_ls) + 40
+            if (max(height_ls) - np.median(height_ls)) / np.median(height_ls) < 0.3:
+                height_res = max(height_ls) + 40
+            else:
+                height_res = np.median(height_ls) + 40
+        return weight_res, height_res
+    else:
+        return 0, 0
 
 def create_image_table(images, image_height, image_width, font_size=36):
     # 设置字体和字号
@@ -132,9 +171,9 @@ def create_collage(output_folder, pics, n=20):
     num = len(input_images) // 20 + 1
 
     ##get image shape to the same
-    image_height, image_width,_ = cv2.imread(input_images[0]).shape
-    image_height+=20  # 放大尺寸，防止下面resize后，某些子图分辨率过低
-    image_width+=20
+    image_height, image_width = get_average_dimensions(input_images)
+    #image_height+=20  # 放大尺寸，防止下面resize后，某些子图分辨率过低
+    #image_width+=20
     for i in tqdm(range(num)):
         # Load and resize individual images
         images = []
@@ -260,6 +299,11 @@ def main(sam_endpoint_name, glm4v_endpoint_name, image_path, output_folder):
                 del res2[i]['image_paths']
                 results.append(res2[i])         # case 3: perfect
 
+    # Save
+    if not os.path.exists(output_folder):
+        # Create the directory (including parents if necessary)
+        os.makedirs(output_folder, exist_ok=True)
+
     ## jsonoutput
     json_name = 'res.json'
     with open(os.path.join(output_folder, json_name), 'w', encoding='utf-8') as f:
@@ -281,6 +325,7 @@ def main(sam_endpoint_name, glm4v_endpoint_name, image_path, output_folder):
                 ocr_filter.append(o)
     results_final['merged_bbox']=bbox_filter
     results_final['ocr_res']=ocr_filter
+
     with open(os.path.join(output_folder, json_name_final), 'w', encoding='utf-8') as f:
         # Use json.dump() to write the list to the file
         json.dump(results_final, f)  # Optional parameter for indentation
