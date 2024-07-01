@@ -47,7 +47,7 @@ def invoke_sam(runtime, sam_endpoint_name, body_base64):
     input_data = {
         "body": body_base64,
         "task": "AutomaticMaskGenerator",
-        "points_per_side": 32,
+        "points_per_side": 64,
         "points_per_batch": 128,
         "pred_iou_thresh": 0.88,
         "stability_score_thresh": 0.9,
@@ -123,7 +123,7 @@ def get_average_dimensions(input_images):
                 height_res = max(height_ls) + 40
             else:
                 height_res = np.median(height_ls) + 40
-        return weight_res, height_res
+        return int(weight_res), int(height_res)
     else:
         return 0, 0
 
@@ -242,6 +242,28 @@ def remove_non_numeric(string):
     
     return cleaned_string
 
+def visual(results_final,output_folder):
+    # 加载图像
+    image = cv2.imread(results_final['merged_image_name'])
+
+    # 遍历JSON数据并绘制文本和边界框
+    i = len(results_final['merged_bbox'])
+
+    for item in range(i):
+        bbox = results_final['merged_bbox'][item]
+        text = results_final['ocr_res'][item]
+        x, y, width, height = bbox
+        x1, y1, x2, y2 = x, y, x + width, y + height
+
+        # 绘制边界框
+        cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        # 绘制文本
+        cv2.putText(image, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (36, 255, 12), 2)
+
+    # 保存带有标注的图像
+    cv2.imwrite(os.path.join(output_folder,'output.jpg'), image)
+
 def main(sam_endpoint_name, glm4v_endpoint_name, image_path, output_folder):
     session = Session()
     runtime = session.client("runtime.sagemaker")
@@ -330,14 +352,34 @@ def main(sam_endpoint_name, glm4v_endpoint_name, image_path, output_folder):
         # Use json.dump() to write the list to the file
         json.dump(results_final, f)  # Optional parameter for indentation
     print('Data written to json',json_name_final)
-    
-    return res2
+
+    ## 结果可视化
+    visual(results_final,output_folder)
+    return
+
+def main_visual(sam_endpoint_name, glm4v_endpoint_name, image_path, output_folder, image_folder):
+    if image_folder!='na':
+        images = os.listdir(image_folder)
+        for i in images:
+            if i.endswith(('.jpg', '.png', '.jpeg','JPG')):
+                print ("process image : ", i)
+                image_path = os.path.join(image_folder,i)
+                image_name = image_path.split('/')[-1].split('.')[0]
+                outputsub_folder = os.path.join(output_folder,image_name)
+                main(sam_endpoint_name, glm4v_endpoint_name, image_path, outputsub_folder)
+            else:
+                print("process image ERROR! : ", i)
+                continue
+    else:
+        #process single picture
+        main(sam_endpoint_name, glm4v_endpoint_name, image_path, output_folder)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--glm4v_endpoint_name', type=str)
     parser.add_argument('--output_folder', default = './', type=str)
     parser.add_argument('--sam_endpoint_name',type=str)
-    parser.add_argument('--image_path', type=str)
+    parser.add_argument('--image_path', default = './test.jpg', type=str)
+    parser.add_argument('--image_folder', default  = 'na', type=str)
     args = parser.parse_args()
-    main(args.sam_endpoint_name, args.glm4v_endpoint_name, args.image_path, args.output_folder)
+    main_visual(args.sam_endpoint_name, args.glm4v_endpoint_name, args.image_path, args.output_folder, args.image_folder)
