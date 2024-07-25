@@ -129,8 +129,18 @@ def predict_fn(input_data, model):
     print(input_data.keys())
 
     image = input_data['image']
-    image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    ## 判读图片类型
+    if image.mode == 'RGB' or image.mode == 'RGBA':
+        image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    else:
+        pil_image = image.convert('L')
+        # Convert to NumPy array
+        np_image = np.array(pil_image)
+        # Now you can use np_image with OpenCV functions
+        open_cv_image = np_image  # No need for color conversion
+        image = cv2.cvtColor(open_cv_image, cv2.COLOR_BGR2RGB)
+
     print(image.shape)
     task = input_data['task']
     print('Task: ', task)
@@ -167,12 +177,19 @@ def predict_fn(input_data, model):
                 min_mask_region_area=prediction['min_mask_region_area'],
             )
             masks = mask_generator.generate(image)
+            print ("<<<< number of masks: ", len(masks))
+
+            # output no segmentation result
+            '''
             print("start convert numpy to list!")
             for i in masks:
                 mask_np = np.asfortranarray(i['segmentation'])
                 rle = mask.encode(mask_np)
                 ret = lzstring_processor.compressToEncodedURIComponent(rle["counts"].decode())
                 i['segmentation'] = ret
+            '''
+            for i in masks:
+                del i["segmentation"]
 
             prediction['masks'] = masks
             prediction['task'] = task
